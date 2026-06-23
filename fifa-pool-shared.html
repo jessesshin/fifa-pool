@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>FIFA World Cup 2026 — Pool Bracket Challenge</title>
+<style>
+  :root{--bg:#0b1d3a;--card:#fff;--ink:#0b1d3a;--muted:#5b6b80;
+        --accent:#ffb81c;--good:#1f9d55;--bad:#d64545;--line:#dbe2ec;--gold:#f5c518;}
+  *{box-sizing:border-box;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{margin:0;background:linear-gradient(180deg,#0b1d3a,#13315c);color:var(--ink);min-height:100vh;padding:20px;}
+  header{text-align:center;color:#fff;margin-bottom:18px;}
+  header h1{margin:0 0 4px;font-size:26px;}
+  header p{margin:0;color:#cdd7e6;font-size:14px;}
+  .tabs{display:flex;justify-content:center;gap:8px;margin:18px 0;}
+  .tabs button{background:#fff;border:0;padding:10px 20px;border-radius:6px;cursor:pointer;font-weight:600;}
+  .tabs button.active{background:var(--accent);}
+  .panel{display:none;max-width:1500px;margin:0 auto;}
+  .panel.active{display:block;}
+  .scorebar{display:flex;gap:8px;justify-content:center;margin:14px 0;flex-wrap:wrap;}
+  .chip{background:#fff;border-radius:999px;padding:6px 14px;font-weight:600;font-size:13px;box-shadow:0 2px 6px rgba(0,0,0,.15);}
+  .chip.total{background:var(--accent);}
+  .bracket{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;}
+  .round{display:flex;flex-direction:column;justify-content:space-around;gap:10px;}
+  .round h2{color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:1.5px;text-align:center;margin:0 0 6px;}
+  .round h2 span{display:block;color:var(--accent);font-size:11px;margin-top:2px;}
+  .match{background:var(--card);border-radius:8px;padding:8px;box-shadow:0 2px 8px rgba(0,0,0,.18);}
+  .team{display:flex;align-items:center;gap:6px;padding:6px 8px;border:2px solid var(--line);border-radius:5px;cursor:pointer;margin-bottom:4px;font-size:12px;background:#fafbfd;transition:.15s;}
+  .team:hover{border-color:var(--accent);}
+  .team.picked{background:#13315c;color:#fff;border-color:var(--accent);font-weight:600;}
+  .team.placeholder{font-style:italic;color:#888;}
+  .team.actual{background:#eef7ef;border-color:var(--good);}
+  .team.correct{box-shadow:inset 0 0 0 2px var(--good);}
+  .controls{text-align:center;margin:20px 0;}
+  .controls button{background:var(--accent);color:var(--ink);border:0;padding:10px 18px;border-radius:6px;font-weight:700;cursor:pointer;margin:4px;}
+  .controls button.secondary{background:#fff;}
+  .name-input{display:block;width:100%;padding:8px;margin-bottom:12px;border:1px solid var(--line);border-radius:6px;text-align:center;font-weight:600;}
+  .champion-tile{background:linear-gradient(135deg,#ffb81c,#ff7a00);padding:14px;border-radius:10px;text-align:center;color:#fff;}
+  .champion-tile select{width:100%;padding:8px;border-radius:6px;border:0;font-weight:600;margin-top:6px;}
+  .pool-card{background:#fff;border-radius:10px;padding:20px;margin-bottom:14px;}
+  .pool-card h3{margin:0 0 10px;}
+  .pool-card textarea{width:100%;height:100px;font-family:monospace;font-size:12px;padding:8px;border:1px solid var(--line);border-radius:6px;}
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;}
+  th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);}
+  th{background:#13315c;color:#fff;font-size:13px;}
+  tr.gold{background:#fff9e0;font-weight:700;}
+  tr.silver{background:#f1f1f1;}
+  tr.bronze{background:#fce8d6;}
+  .rank{font-size:18px;font-weight:800;width:50px;}
+  .status{font-size:12px;color:var(--muted);margin-top:6px;text-align:center;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚽ FIFA World Cup 2026 Pool</h1>
+  <p>48 teams · 12 groups · Knockout starts June 28 · Final July 19 at MetLife Stadium</p>
+</header>
+
+<div class="tabs">
+  <button class="active" onclick="showTab('picks')">📝 My Picks</button>
+  <button onclick="showTab('pool')">👥 Pool Manager</button>
+  <button onclick="showTab('leaderboard')">🏆 Leaderboard</button>
+  <button onclick="showTab('admin')">🛠️ Admin (Results)</button>
+</div>
+
+<!-- ===== MY PICKS TAB ===== -->
+<div class="panel active" id="picks">
+  <div style="max-width:400px;margin:0 auto 14px;">
+    <input class="name-input" id="entrantName" placeholder="Your name (required)" />
+  </div>
+  <div class="scorebar" id="scorebar"></div>
+  <div class="bracket" id="bracket"></div>
+  <div class="controls">
+    <button onclick="refreshTeams()">🌐 Refresh Teams from FIFA</button>
+    <button onclick="submitToPool()">📤 Submit My Picks to Pool</button>
+    <button class="secondary" onclick="resetPicks()">🔄 Reset My Picks</button>
+  </div>
+  <div class="status" id="fetchStatus"></div>
+</div>
+
+<!-- ===== POOL MANAGER TAB ===== -->
+<div class="panel" id="pool">
+  <div class="pool-card">
+    <h3>📥 Add Entrant to Pool</h3>
+    <p style="font-size:13px;color:var(--muted);">
+      Each player should click "Submit My Picks to Pool" on their bracket. They'll get a JSON blob to send you (Teams, Slack, email).
+      Paste each blob below and click "Add to Pool". Pool holds up to 10 entrants.
+    </p>
+    <textarea id="submitBlob" placeholder='Paste an entrant JSON blob here, e.g. {"name":"Alice","picks":{...}}'></textarea>
+    <div style="text-align:center;margin-top:10px;">
+      <button onclick="addEntrant()">➕ Add to Pool</button>
+      <button class="secondary" onclick="clearPool()">🗑️ Clear Pool</button>
+    </div>
+  </div>
+  <div class="pool-card">
+    <h3>Current Pool</h3>
+    <div id="poolList"></div>
+  </div>
+</div>
+
+<!-- ===== LEADERBOARD TAB ===== -->
+<div class="panel" id="leaderboard">
+  <div style="background:#fff;padding:16px;border-radius:10px;margin-bottom:12px;">
+    <h3 style="margin:0 0 6px;">🏆 Live Pool Leaderboard</h3>
+    <p style="font-size:13px;color:var(--muted);margin:0;">
+      Scoring: R32=1pt · R16=2pt · QF=4pt · SF=8pt · Final=16pt · Champion=32pt (bonus) · Max = 144 points.
+      Tiebreaker: correct champion pick, then correct finalist picks.
+    </p>
+  </div>
+  <table id="leaderboardTable"></table>
+</div>
+
+<!-- ===== ADMIN TAB ===== -->
+<div class="panel" id="admin">
+  <div class="pool-card">
+    <h3>🛠️ Enter Actual Results</h3>
+    <p style="font-size:13px;color:var(--muted);">
+      As real matches finish, mark winners here. Scores on the Leaderboard update automatically.
+      Results and pool entries are stored in the shared text file on the server.
+    </p>
+    <button onclick="toggleAdminMode()">Toggle Admin Mode (currently: <span id="adminStatus">OFF</span>)</button>
+  </div>
+  <div class="pool-card">
+    <h3>Quick Actions</h3>
+    <button onclick="exportAll()">📋 Export Everything (JSON)</button>
+    <button class="secondary" onclick="importAll()">📥 Import Pool State</button>
+  </div>
+</div>
+
+<script>
+/* ==========================================================
+   ROUND CONFIG (doubling: 1,2,4,8,16, champion bonus 32)
+   ========================================================== */
+const ROUNDS = [
+  { id:"r32", name:"Round of 32", sub:"1 pt × 16", points:1, matches:16 },
+  { id:"r16", name:"Round of 16", sub:"2 pts × 8",  points:2, matches:8  },
+  { id:"qf",  name:"Quarterfinals", sub:"4 pts × 4", points:4, matches:4 },
+  { id:"sf",  name:"Semifinals", sub:"8 pts × 2",   points:8, matches:2 },
+  { id:"f",   name:"Final",      sub:"16 pts × 1",  points:16, matches:1 },
+  { id:"champ", name:"Champion", sub:"32 pts bonus", points:32, matches:1 }
+];
+
+/* Round of 32 placeholders per FIFA's official bracket structure */
+const R32_SLOTS = [
+  ["Runner-up Group A", "Runner-up Group B"],          // M73
+  ["Winner Group E", "Best 3rd A/B/C/D/F"],            // M74
+  ["Winner Group F", "Runner-up Group C"],             // M75
+  ["Winner Group C", "Runner-up Group F"],             // M76
+  ["Winner Group I", "Best 3rd C/D/F/G/H"],            // M77
+  ["Runner-up Group E", "Runner-up Group I"],          // M78
+  ["Winner Group A", "Best 3rd C/E/F/H/I"],            // M79
+  ["Winner Group L", "Best 3rd E/H/I/J/K"],            // M80
+  ["Winner Group D", "Best 3rd B/E/F/I/J"],            // M81
+  ["Winner Group G", "Best 3rd A/E/H/I/J"],            // M82
+  ["Runner-up Group K", "Runner-up Group L"],          // M83
+  ["Winner Group H", "Runner-up Group J"],             // M84
+  ["Winner Group B", "Best 3rd E/F/G/I/J"],            // M85
+  ["Winner Group J", "Runner-up Group H"],             // M86
+  ["Winner Group K", "Best 3rd D/E/I/J/L"],            // M87
+  ["Runner-up Group D", "Runner-up Group G"]           // M88
+];
+
+/* Known confirmed group standings (as of June 23, 2026) */
+let SLOT_MAP = {
+  "Winner Group A": "🇲🇽 Mexico",
+  "Winner Group D": "🇺🇸 USA",
+  "Winner Group E": "🇩🇪 Germany",
+  "Winner Group J": "🇦🇷 Argentina",
+  "Winner Group I": "🇫🇷 France"
+};
+
+/* ==========================================================
+   STATE
+   ========================================================== */
+let state = JSON.parse(localStorage.getItem("fifaPool") || "{}");
+state.picks     = state.picks     || {};       // {matchId: teamLabel}
+state.actual    = state.actual    || {};
+state.name      = state.name      || "";
+state.pool      = state.pool      || [];       // [{name, picks, ts}]
+state.slotMap   = state.slotMap   || SLOT_MAP;
+let adminMode   = false;
+
+function save(){ localStorage.setItem("fifaPool", JSON.stringify(state)); }
+function resolve(slot){ return state.slotMap[slot] || slot; }
+
+/* ==========================================================
+   SHARED TEXT FILE SYNC
+   Requires running the included server.js. The server reads/writes
+   fifa-pool-data.txt so multiple users share one pool file.
+   ========================================================== */
+async function loadSharedState(){
+  try{
+    const r = await fetch('/pool-data.txt?ts=' + Date.now(), { cache:'no-store' });
+    if(!r.ok) throw new Error('No shared file found');
+    const shared = await r.json();
+    state.pool = shared.pool || [];
+    state.actual = shared.actual || {};
+    state.slotMap = Object.assign(state.slotMap || {}, shared.slotMap || {});
+    save();
+    return true;
+  }catch(e){
+    console.warn('Shared mode unavailable. Run server.js to enable shared file sync.', e);
+    return false;
+  }
+}
+async function writeSharedState(){
+  const payload = { pool:state.pool || [], actual:state.actual || {}, slotMap:state.slotMap || {}, updatedAt:new Date().toISOString() };
+  try{
+    const r = await fetch('/api/state', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    if(!r.ok) throw new Error(await r.text());
+    return await r.json();
+  }catch(e){
+    alert('Could not update shared text file. Make sure you opened this through the Node server, not by double-clicking the HTML file.');
+    throw e;
+  }
+}
+
+/* ==========================================================
+   TAB SWITCHING
+   ========================================================== */
+function showTab(id){
+  document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+  document.querySelectorAll(".tabs button").forEach(b=>b.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  event.target.classList.add("active");
+  if(id==="leaderboard") renderLeaderboard();
+  if(id==="pool") renderPoolList();
+}
+
+/* ==========================================================
+   BRACKET RENDER
+   ========================================================== */
+function render(){
+  document.getElementById("entrantName").value = state.name;
+  const wrap = document.getElementById("bracket");
+  wrap.innerHTML = "";
+
+  ROUNDS.forEach((rnd, rIdx)=>{
+    const col = document.createElement("div");
+    col.className = "round";
+    col.innerHTML = `<h2>${rnd.name}<span>${rnd.sub}</span></h2>`;
+
+    if(rnd.id === "champ"){
+      const finalists = getTeamsForRound(4); // winners of SF
+      const tile = document.createElement("div");
+      tile.className = "champion-tile";
+      tile.innerHTML = `<div>🏆 Pick the Champion</div>
+        <select onchange="pickChamp(this.value)">
+          <option value="">— Select champion —</option>
+          ${[...new Set(finalists)].filter(t=>t).map(t=>
+            `<option ${state.picks["champ-0"]===t?"selected":""}>${t}</option>`).join("")}
+        </select>`;
+      col.appendChild(tile);
+      wrap.appendChild(col);
+      return;
+    }
+
+    for(let m=0; m<rnd.matches; m++){
+      const matchId = `${rnd.id}-${m}`;
+      const [aRaw, bRaw] = getMatchTeams(rIdx, m);
+      const a = resolve(aRaw), b = resolve(bRaw);
+      const matchDiv = document.createElement("div");
+      matchDiv.className = "match";
+      [[aRaw,a],[bRaw,b]].forEach(([raw,label])=>{
+        const isPick = state.picks[matchId] === label;
+        const isActual = state.actual[matchId] === label;
+        const isCorrect = isPick && isActual;
+        const isPlaceholder = label === raw && label.includes("Group");
+        matchDiv.innerHTML += `
+          <div class="team ${isPick?"picked":""} ${adminMode && isActual?"actual":""} ${isCorrect?"correct":""} ${isPlaceholder?"placeholder":""}"
+               onclick="${label?`handleClick('${matchId}', \`${label.replace(/`/g,"\\`")}\`)`:""}">
+            <span>${label || "—"}</span>
+            ${isCorrect?"<span style='margin-left:auto'>✓</span>":""}
+          </div>`;
+      });
+      col.appendChild(matchDiv);
+    }
+    wrap.appendChild(col);
+  });
+
+  updateScorebar();
+}
+
+function getMatchTeams(rIdx, mIdx){
+  if(rIdx === 0) return R32_SLOTS[mIdx];
+  const prev = ROUNDS[rIdx-1].id;
+  return [
+    state.picks[`${prev}-${mIdx*2}`]   || "",
+    state.picks[`${prev}-${mIdx*2+1}`] || ""
+  ];
+}
+
+function getTeamsForRound(rIdx){
+  const rnd = ROUNDS[rIdx];
+  const picks = [];
+  for(let m=0;m<rnd.matches;m++){
+    const p = state.picks[`${rnd.id}-${m}`];
+    if(p) picks.push(p);
+  }
+  return picks;
+}
+
+function handleClick(matchId, team){
+  if(adminMode){ setActual(matchId, team); return; }
+  pick(matchId, team);
+}
+
+function pick(matchId, team){
+  state.picks[matchId] = team;
+  const srcR = ROUNDS.findIndex(r=>r.id===matchId.split("-")[0]);
+  // wipe all later-round picks for consistency
+  Object.keys(state.picks).forEach(k=>{
+    const rIdx = ROUNDS.findIndex(r=>r.id===k.split("-")[0]);
+    if(rIdx > srcR) delete state.picks[k];
+  });
+  save(); render();
+}
+
+function pickChamp(team){
+  if(team) state.picks["champ-0"] = team;
+  else delete state.picks["champ-0"];
+  save(); render();
+}
+
+function setActual(matchId, team){
+  if(state.actual[matchId] === team) delete state.actual[matchId];
+  else state.actual[matchId] = team;
+  save(); writeSharedState(); render(); renderLeaderboard();
+}
+
+/* ==========================================================
+   SCORING
+   ========================================================== */
+function calcScore(picks){
+  let total = 0, breakdown = {r32:0,r16:0,qf:0,sf:0,f:0,champ:0};
+  ROUNDS.forEach(rnd=>{
+    for(let m=0;m<rnd.matches;m++){
+      const id = `${rnd.id}-${m}`;
+      if(picks[id] && picks[id] === state.actual[id]){
+        total += rnd.points;
+        breakdown[rnd.id] += rnd.points;
+      }
+    }
+  });
+  return { total, breakdown };
+}
+
+function updateScorebar(){
+  const { total, breakdown } = calcScore(state.picks);
+  document.getElementById("scorebar").innerHTML = `
+    <div class="chip">R32: ${breakdown.r32}/16</div>
+    <div class="chip">R16: ${breakdown.r16}/16</div>
+    <div class="chip">QF: ${breakdown.qf}/16</div>
+    <div class="chip">SF: ${breakdown.sf}/16</div>
+    <div class="chip">F: ${breakdown.f}/16</div>
+    <div class="chip">Champ: ${breakdown.champ}/32</div>
+    <div class="chip total">Total: ${total}/144</div>`;
+}
+
+/* ==========================================================
+   POOL MANAGEMENT
+   ========================================================== */
+async function submitToPool(){
+  if(!state.name.trim()){ alert("Enter your name first."); return; }
+  const entry = { name:state.name.trim(), picks:state.picks, ts:Date.now() };
+  try{
+    const r = await fetch('/api/submit', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(entry) });
+    if(!r.ok) throw new Error(await r.text());
+    const shared = await r.json();
+    state.pool = shared.pool || [];
+    state.actual = shared.actual || state.actual;
+    state.slotMap = Object.assign(state.slotMap || {}, shared.slotMap || {});
+    save(); writeSharedState(); renderPoolList(); renderLeaderboard();
+    alert(`✅ Submitted! Your bracket was saved to the shared text file.`);
+  }catch(err){
+    const blob = JSON.stringify(entry, null, 2);
+    navigator.clipboard?.writeText(blob);
+    alert(`Shared submit failed. I copied your picks JSON to clipboard as a backup.
+
+Open this page through the shared server to auto-save.`);
+  }
+}
+
+function addEntrant(){
+  const raw = document.getElementById("submitBlob").value.trim();
+  if(!raw) return;
+  try{
+    const e = JSON.parse(raw);
+    if(!e.name || !e.picks) throw new Error("Missing name/picks");
+    // Replace existing if same name, else append
+    state.pool = state.pool.filter(p=>p.name.toLowerCase() !== e.name.toLowerCase());
+    if(state.pool.length >= 10){ alert("Pool is full (10 max)."); return; }
+    state.pool.push({name:e.name, picks:e.picks, ts:e.ts||Date.now()});
+    save();
+    document.getElementById("submitBlob").value = "";
+    renderPoolList();
+    alert(`✅ Added ${e.name} to the pool (${state.pool.length}/10).`);
+  }catch(err){ alert("Invalid JSON: "+err.message); }
+}
+
+function removeEntrant(name){
+  if(!confirm(`Remove ${name} from pool?`)) return;
+  state.pool = state.pool.filter(p=>p.name !== name);
+  save(); writeSharedState(); renderPoolList(); renderLeaderboard();
+}
+
+function clearPool(){
+  if(!confirm("Clear ALL entrants from the pool?")) return;
+  state.pool = []; save(); writeSharedState(); renderPoolList();
+}
+
+function renderPoolList(){
+  const div = document.getElementById("poolList");
+  if(!state.pool.length){ div.innerHTML = "<p style='color:#888'>No entrants yet.</p>"; return; }
+  div.innerHTML = state.pool.map(e=>`
+    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);">
+      <span><b>${e.name}</b> · ${Object.keys(e.picks).length} picks · submitted ${new Date(e.ts).toLocaleString()}</span>
+      <button onclick="removeEntrant('${e.name.replace(/'/g,"\\'")}')" style="background:var(--bad);color:#fff;border:0;padding:4px 10px;border-radius:4px;cursor:pointer;">Remove</button>
+    </div>`).join("");
+}
+
+/* ==========================================================
+   LEADERBOARD
+   ========================================================== */
+function renderLeaderboard(){
+  const tbl = document.getElementById("leaderboardTable");
+  if(!state.pool.length){
+    tbl.innerHTML = "<tr><td style='padding:20px;text-align:center;color:#888'>No entrants in pool yet. Go to <b>Pool Manager</b> tab to add them.</td></tr>";
+    return;
+  }
+  const rows = state.pool.map(e=>{
+    const s = calcScore(e.picks);
+    return { name:e.name, ...s, champ:e.picks["champ-0"]||"—", finalists:[e.picks["f-0"]||"",e.picks["f-1"]||""] };
+  }).sort((a,b)=>{
+    if(b.total !== a.total) return b.total-a.total;
+    // tiebreaker 1: champ correct
+    const aC = state.actual["champ-0"] && a.champ === state.actual["champ-0"] ? 1 : 0;
+    const bC = state.actual["champ-0"] && b.champ === state.actual["champ-0"] ? 1 : 0;
+    return bC - aC;
+  });
+  tbl.innerHTML = `<tr>
+    <th>Rank</th><th>Entrant</th><th>Champion Pick</th>
+    <th>R32</th><th>R16</th><th>QF</th><th>SF</th><th>F</th><th>Champ</th><th>TOTAL</th>
+  </tr>` + rows.map((r,i)=>{
+    const cls = i===0?"gold":i===1?"silver":i===2?"bronze":"";
+    const medal = i===0?"🥇":i===1?"🥈":i===2?"🥉":(i+1);
+    return `<tr class="${cls}">
+      <td class="rank">${medal}</td>
+      <td><b>${r.name}</b></td>
+      <td>${r.champ}</td>
+      <td>${r.breakdown.r32}</td>
+      <td>${r.breakdown.r16}</td>
+      <td>${r.breakdown.qf}</td>
+      <td>${r.breakdown.sf}</td>
+      <td>${r.breakdown.f}</td>
+      <td>${r.breakdown.champ}</td>
+      <td><b>${r.total}</b> / 144</td>
+    </tr>`;
+  }).join("");
+}
+
+/* ==========================================================
+   TEAM FETCH FROM FIFA (public source)
+   ========================================================== */
+async function refreshTeams(){
+  const status = document.getElementById("fetchStatus");
+  status.innerText = "🌐 Fetching live group standings…";
+
+  // Public source: open-source WC2026 API mirror on GitHub
+  // https://github.com/rezarahiminia/worldcup2026
+  const SOURCES = [
+    "https://raw.githubusercontent.com/rezarahiminia/worldcup2026/main/football.matches.json",
+    "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json"
+  ];
+
+  for(const url of SOURCES){
+    try{
+      const r = await fetch(url, { cache:"no-store" });
+      if(!r.ok) continue;
+      const data = await r.json();
+      const standings = computeStandings(data);
+      Object.assign(state.slotMap, standings);
+      save(); render();
+      status.innerText = `✅ Updated from ${new URL(url).hostname} · ${Object.keys(standings).length} slots filled`;
+      return;
+    }catch(e){ /* try next */ }
+  }
+  status.innerText = "⚠️ Couldn't reach a live source (CORS or offline). Using last known standings. " +
+                     "You can also hard-code slot names by editing SLOT_MAP in the script.";
+}
+
+/* Compute group standings from a matches array (flexible shape) */
+function computeStandings(data){
+  const matches = Array.isArray(data) ? data : (data.matches || data.football?.matches || []);
+  const groups = {};
+  matches.forEach(m=>{
+    const g = m.group || m.group_label || m.matchday_label;
+    if(!g || !/^Group [A-L]$/i.test(String(g))) return;
+    const groupKey = String(g).replace(/^group\s+/i,"Group ").toUpperCase().replace("GROUP","Group");
+    const home = m.home_team?.name || m.team1?.name || m.home;
+    const away = m.away_team?.name || m.team2?.name || m.away;
+    const hs = m.score?.ft?.[0] ?? m.score?.home ?? m.home_score;
+    const as = m.score?.ft?.[1] ?? m.score?.away ?? m.away_score;
+    if(!home || !away || hs==null || as==null) return;
+    groups[groupKey] = groups[groupKey] || {};
+    [home,away].forEach(t=>{ groups[groupKey][t] = groups[groupKey][t] || {pts:0,gd:0,gf:0}; });
+    if(hs>as){ groups[groupKey][home].pts+=3; }
+    else if(as>hs){ groups[groupKey][away].pts+=3; }
+    else { groups[groupKey][home].pts+=1; groups[groupKey][away].pts+=1; }
+    groups[groupKey][home].gd += hs-as; groups[groupKey][home].gf += hs;
+    groups[groupKey][away].gd += as-hs; groups[groupKey][away].gf += as;
+  });
+  const out = {};
+  Object.entries(groups).forEach(([g,teams])=>{
+    const sorted = Object.entries(teams).sort((a,b)=>b[1].pts-a[1].pts || b[1].gd-a[1].gd || b[1].gf-a[1].gf);
+    if(sorted[0]) out[`Winner ${g}`]    = sorted[0][0];
+    if(sorted[1]) out[`Runner-up ${g}`] = sorted[1][0];
+  });
+  return out;
+}
+
+/* ==========================================================
+   ADMIN / RESET / IO
+   ========================================================== */
+function toggleAdminMode(){
+  adminMode = !adminMode;
+  document.getElementById("adminStatus").innerText = adminMode?"ON":"OFF";
+  showTab('picks');
+  document.querySelector('.tabs button').classList.add('active');
+  render();
+}
+
+function resetPicks(){
+  if(!confirm("Reset YOUR picks (pool data stays)?")) return;
+  state.picks = {}; save(); render();
+}
+
+function exportAll(){
+  const blob = JSON.stringify({pool:state.pool, actual:state.actual, slotMap:state.slotMap}, null, 2);
+  navigator.clipboard.writeText(blob);
+  alert("Full pool state copied to clipboard.");
+}
+
+function importAll(){
+  const raw = prompt("Paste pool state JSON:");
+  if(!raw) return;
+  try{
+    const o = JSON.parse(raw);
+    if(o.pool) state.pool = o.pool;
+    if(o.actual) state.actual = o.actual;
+    if(o.slotMap) Object.assign(state.slotMap, o.slotMap);
+    save(); writeSharedState(); render(); renderLeaderboard(); renderPoolList();
+    alert("✅ Imported.");
+  }catch(e){ alert("Invalid JSON."); }
+}
+
+document.getElementById("entrantName").addEventListener("input", e=>{
+  state.name = e.target.value; save();
+});
+
+render();
+renderLeaderboard();
+renderPoolList();
+// Auto-refresh teams on first load
+refreshTeams();
+</script>
+</body>
+</html>
