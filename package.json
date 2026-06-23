@@ -1,0 +1,9 @@
+{
+  "name": "fifa-pool",
+  "version": "1.0.0",
+  "description": "World Cup pool server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
