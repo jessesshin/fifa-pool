@@ -115,10 +115,11 @@
   <div class="pool-card">
     <h3>🛠️ Enter Actual Results</h3>
     <p style="font-size:13px;color:var(--muted);">
-      As real matches finish, mark winners here. Scores on the Leaderboard update automatically.
-      Results and pool entries are stored in the shared text file on the server.
+      ESPN checks for completed matches every 5 minutes and updates winners automatically. If ESPN misses or maps something wrong, turn on Admin Mode and click the correct winner manually.
     </p>
     <button onclick="toggleAdminMode()">Toggle Admin Mode (currently: <span id="adminStatus">OFF</span>)</button>
+    <button onclick="syncEspnNow()">🔄 Sync ESPN Now</button>
+    <div class="status" id="liveSyncStatus"></div>
   </div>
   <div class="pool-card">
     <h3>Quick Actions</h3>
@@ -178,6 +179,7 @@ state.actual    = state.actual    || {};
 state.name      = state.name      || "";
 state.pool      = state.pool      || [];       // [{name, picks, ts}]
 state.slotMap   = state.slotMap   || SLOT_MAP;
+state.liveSync  = state.liveSync  || {};
 let adminMode   = false;
 
 function save(){ localStorage.setItem("fifaPool", JSON.stringify(state)); }
@@ -196,6 +198,7 @@ async function loadSharedState(){
     state.pool = shared.pool || [];
     state.actual = shared.actual || {};
     state.slotMap = Object.assign(state.slotMap || {}, shared.slotMap || {});
+    state.liveSync = shared.liveSync || state.liveSync || {};
     save();
     return true;
   }catch(e){
@@ -370,7 +373,8 @@ async function submitToPool(){
     state.pool = shared.pool || [];
     state.actual = shared.actual || state.actual;
     state.slotMap = Object.assign(state.slotMap || {}, shared.slotMap || {});
-    save(); writeSharedState(); renderPoolList(); renderLeaderboard();
+    state.liveSync = shared.liveSync || state.liveSync || {};
+    save(); renderPoolList(); renderLeaderboard(); updateLiveSyncStatus();
     alert(`✅ Submitted! Your bracket was saved to the shared text file.`);
   }catch(err){
     const blob = JSON.stringify(entry, null, 2);
@@ -401,7 +405,7 @@ function addEntrant(){
 function removeEntrant(name){
   if(!confirm(`Remove ${name} from pool?`)) return;
   state.pool = state.pool.filter(p=>p.name !== name);
-  save(); writeSharedState(); renderPoolList(); renderLeaderboard();
+  save(); renderPoolList(); renderLeaderboard(); updateLiveSyncStatus();
 }
 
 function clearPool(){
@@ -422,23 +426,42 @@ function renderPoolList(){
 /* ==========================================================
    LEADERBOARD
    ========================================================== */
+function getProgress(){
+  const totalMatches = ROUNDS.reduce((sum, r) => sum + r.matches, 0);
+  const completed = Object.keys(state.actual || {}).length;
+  return { completed, total: totalMatches };
+}
 function renderLeaderboard(){
   const tbl = document.getElementById("leaderboardTable");
+  const progress = getProgress();
+  const syncText = state.liveSync?.lastChecked
+    ? ` · ESPN last checked ${new Date(state.liveSync.lastChecked).toLocaleString()} (${state.liveSync.message || 'OK'})`
+    : '';
+
+  let htmlOut = `
+    <tr>
+      <td colspan="10" style="padding:10px;text-align:center;font-weight:600;">
+        📊 Progress: ${progress.completed} / ${progress.total} matches completed${syncText}
+      </td>
+    </tr>`;
+
   if(!state.pool.length){
-    tbl.innerHTML = "<tr><td style='padding:20px;text-align:center;color:#888'>No entrants in pool yet. Go to <b>Pool Manager</b> tab to add them.</td></tr>";
+    tbl.innerHTML = htmlOut + "<tr><td colspan='10' style='padding:20px;text-align:center;color:#888'>No entrants in pool yet. Go to <b>Pool Manager</b> tab to add them.</td></tr>";
+    updateLiveSyncStatus();
     return;
   }
+
   const rows = state.pool.map(e=>{
     const s = calcScore(e.picks);
     return { name:e.name, ...s, champ:e.picks["champ-0"]||"—", finalists:[e.picks["f-0"]||"",e.picks["f-1"]||""] };
   }).sort((a,b)=>{
     if(b.total !== a.total) return b.total-a.total;
-    // tiebreaker 1: champ correct
     const aC = state.actual["champ-0"] && a.champ === state.actual["champ-0"] ? 1 : 0;
     const bC = state.actual["champ-0"] && b.champ === state.actual["champ-0"] ? 1 : 0;
     return bC - aC;
   });
-  tbl.innerHTML = `<tr>
+
+  htmlOut += `<tr>
     <th>Rank</th><th>Entrant</th><th>Champion Pick</th>
     <th>R32</th><th>R16</th><th>QF</th><th>SF</th><th>F</th><th>Champ</th><th>TOTAL</th>
   </tr>` + rows.map((r,i)=>{
@@ -446,7 +469,7 @@ function renderLeaderboard(){
     const medal = i===0?"🥇":i===1?"🥈":i===2?"🥉":(i+1);
     return `<tr class="${cls}">
       <td class="rank">${medal}</td>
-      <td><b>${r.name}</b></td>
+      <td><b style="cursor:pointer;color:#0b1d3a;" onclick="viewEntrant('${r.name.replace(/'/g,"\'")}')">${r.name}</b></td>
       <td>${r.champ}</td>
       <td>${r.breakdown.r32}</td>
       <td>${r.breakdown.r16}</td>
@@ -457,8 +480,10 @@ function renderLeaderboard(){
       <td><b>${r.total}</b> / 144</td>
     </tr>`;
   }).join("");
-}
 
+  tbl.innerHTML = htmlOut;
+  updateLiveSyncStatus();
+}
 /* ==========================================================
    TEAM FETCH FROM FIFA (public source)
    ========================================================== */
@@ -554,6 +579,46 @@ function importAll(){
   }catch(e){ alert("Invalid JSON."); }
 }
 
+function viewEntrant(name){
+  const entrant = state.pool.find(p => p.name === name);
+  if(!entrant) return;
+
+  let picks = Object.entries(entrant.picks)
+    .map(([k,v]) => `${k}: ${v}`)
+    .join("\n");
+
+  alert(`${name}'s Bracket:\n\n${picks}`);
+}
+
+
+
+
+function updateLiveSyncStatus(){
+  const el = document.getElementById("liveSyncStatus");
+  if(!el) return;
+  if(!state.liveSync || !state.liveSync.lastChecked){
+    el.innerText = "ESPN sync: not checked yet";
+    return;
+  }
+  el.innerText = `ESPN sync: ${state.liveSync.message || 'OK'} · ${new Date(state.liveSync.lastChecked).toLocaleString()}`;
+}
+
+async function syncEspnNow(){
+  try{
+    const r = await fetch(window.location.origin + '/api/espn-sync', { method:'POST' });
+    if(!r.ok) throw new Error(await r.text());
+    const shared = await r.json();
+    state.pool = shared.pool || [];
+    state.actual = shared.actual || {};
+    state.slotMap = Object.assign(state.slotMap || {}, shared.slotMap || {});
+    state.liveSync = shared.liveSync || {};
+    save(); render(); renderLeaderboard(); renderPoolList(); updateLiveSyncStatus();
+    alert('✅ ESPN sync complete.');
+  }catch(e){
+    alert('ESPN sync failed: ' + e.message);
+  }
+}
+
 document.getElementById("entrantName").addEventListener("input", e=>{
   state.name = e.target.value; save();
 });
@@ -564,7 +629,7 @@ async function init(){
   renderLeaderboard();
   renderPoolList();
   refreshTeams();
-  setInterval(loadSharedState, 5000);
+  setInterval(async () => { await loadSharedState(); render(); renderLeaderboard(); renderPoolList(); }, 5000);
 }
 
 init();
