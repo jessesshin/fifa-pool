@@ -38,33 +38,27 @@ const ROUNDS = [
 ];
 
 const R32_SLOTS = [
-  // June 28
   ['Runner-up Group A', 'Runner-up Group B'],
 
-  // June 29
-  ['Winner Group C', 'Runner-up Group F'],                 // Brazil vs Japan
-  ['Winner Group E', 'Best 3rd A/B/C/D/F'],                // Germany vs 3rd
-  ['Winner Group F', 'Runner-up Group C'],                 // Netherlands vs Morocco
+  ['Winner Group C', 'Runner-up Group F'],
+  ['Winner Group E', 'Best 3rd A/B/C/D/F'],
+  ['Winner Group F', 'Runner-up Group C'],
 
-  // June 30
-  ['Runner-up Group E', 'Runner-up Group I'],              // Ivory Coast vs Norway
-  ['Winner Group I', 'Best 3rd C/D/F/G/H'],                // France vs Sweden
-  ['Winner Group A', 'Best 3rd C/E/F/H/I'],                // Mexico vs Scotland
+  ['Runner-up Group E', 'Runner-up Group I'],
+  ['Winner Group I', 'Best 3rd C/D/F/G/H'],
+  ['Winner Group A', 'Best 3rd C/E/F/H/I'],
 
-  // July 1
-  ['Winner Group L', 'Best 3rd E/H/I/J/K'],                // England vs Cape Verde
-  ['Winner Group G', 'Best 3rd A/E/H/I/J'],                // Egypt vs South Korea
-  ['Winner Group D', 'Best 3rd B/E/F/I/J'],                // USA vs Bosnia ✅
+  ['Winner Group L', 'Best 3rd E/H/I/J/K'],
+  ['Winner Group G', 'Best 3rd A/E/H/I/J'],
+  ['Winner Group D', 'Best 3rd B/E/F/I/J'],
 
-  // July 2
-  ['Winner Group H', 'Runner-up Group J'],                 // Spain vs Austria
-  ['Runner-up Group K', 'Runner-up Group L'],              // Portugal vs Ghana
-  ['Winner Group B', 'Best 3rd E/F/G/I/J'],                // Switzerland vs Belgium
+  ['Winner Group H', 'Runner-up Group J'],
+  ['Runner-up Group K', 'Runner-up Group L'],
+  ['Winner Group B', 'Best 3rd E/F/G/I/J'],
 
-  // July 3
-  ['Runner-up Group D', 'Runner-up Group G'],              // Australia vs Iran
-  ['Winner Group J', 'Runner-up Group H'],                 // Argentina vs Uruguay
-  ['Winner Group K', 'Best 3rd D/E/I/J/L']                 // Colombia vs Croatia
+  ['Runner-up Group D', 'Runner-up Group G'],
+  ['Winner Group J', 'Runner-up Group H'],
+  ['Winner Group K', 'Best 3rd D/E/I/J/L']
 ];
 
 function defaultData(){
@@ -109,10 +103,15 @@ function send(res, code, body, type='application/json'){
 function collectJson(req){
   return new Promise((resolve, reject) => {
     let body = '';
-    req.on('data', c => body += c);
+
+    req.on('data', chunk => body += chunk);
+
     req.on('end', () => {
-      try { resolve(JSON.parse(body || '{}')); }
-      catch(e){ reject(e); }
+      try {
+        resolve(JSON.parse(body || '{}'));
+      } catch(e) {
+        reject(e);
+      }
     });
   });
 }
@@ -135,18 +134,23 @@ function normalizeTeam(s){
     'usa': 'united states',
     'us': 'united states',
     'united states of america': 'united states',
+
     'bosnia': 'bosnia and herzegovina',
     'bosnia herz': 'bosnia and herzegovina',
     'bosnia herzegovina': 'bosnia and herzegovina',
     'bosnia and herzegovina': 'bosnia and herzegovina',
+
     'cote d ivoire': 'ivory coast',
     'côte d ivoire': 'ivory coast',
     'ivory coast': 'ivory coast',
+
     'czechia': 'czech republic',
     'korea republic': 'south korea',
     'republic of korea': 'south korea',
+
     'dr congo': 'congo dr',
     'democratic republic of congo': 'congo dr',
+
     'cape verde': 'cabo verde',
     'curacao': 'curaçao'
   };
@@ -180,6 +184,7 @@ async function fetchScores(dates){
     try {
       const r = await fetch(`${ESPN_SCOREBOARD_URL}?dates=${date}`);
       if(!r.ok) continue;
+
       const data = await r.json();
       all.push(...(data.events || []));
     } catch(e) {
@@ -265,8 +270,8 @@ function addStanding(groups, group, teams){
   }
 }
 
-function sortedTeams(obj){
-  return Object.values(obj).sort((a,b) =>
+function sortedTeams(groupObj){
+  return Object.values(groupObj).sort((a,b) =>
     b.pts - a.pts ||
     b.gd - a.gd ||
     b.gf - a.gf ||
@@ -296,10 +301,10 @@ async function syncGroupWinners(data){
   let filled = 0;
   let groupsComplete = 0;
 
-  for(const [group, obj] of Object.entries(groups)){
-    const teams = sortedTeams(obj);
+  for(const [group, groupObj] of Object.entries(groups)){
+    const teams = sortedTeams(groupObj);
     const completedMatches =
-      Object.values(obj).reduce((sum,t) => sum + t.played, 0) / 2;
+      Object.values(groupObj).reduce((sum,t) => sum + t.played, 0) / 2;
 
     if(completedMatches >= 6 && teams.length >= 4){
       groupsComplete++;
@@ -340,8 +345,9 @@ async function syncR32SlotsFromEspnSchedule(data){
     const espnTeams = teams.map(t => t.name).filter(Boolean);
     if(espnTeams.length < 2) continue;
 
-    for(const [index, slotPair] of R32_SLOTS.entries()){
+    for(const slotPair of R32_SLOTS){
       const [slotA, slotB] = slotPair;
+
       const resolvedA = resolve(slotA, data.slotMap);
       const resolvedB = resolve(slotB, data.slotMap);
 
@@ -351,7 +357,6 @@ async function syncR32SlotsFromEspnSchedule(data){
       const espnA = espnTeams[0];
       const espnB = espnTeams[1];
 
-      // If side A is known and side B is placeholder, use ESPN opponent.
       if(aKnown && isPlaceholder(resolvedB)){
         if(sameTeam(resolvedA, espnA)){
           if(data.slotMap[slotB] !== espnB){
@@ -366,7 +371,6 @@ async function syncR32SlotsFromEspnSchedule(data){
         }
       }
 
-      // If side B is known and side A is placeholder, use ESPN opponent.
       if(bKnown && isPlaceholder(resolvedA)){
         if(sameTeam(resolvedB, espnA)){
           if(data.slotMap[slotA] !== espnB){
@@ -380,10 +384,6 @@ async function syncR32SlotsFromEspnSchedule(data){
           }
         }
       }
-
-      // If both are placeholders, use matchup order only when event date/order clearly lines up.
-      // This is intentionally conservative to avoid wrong slots.
-      // Most disputed Best 3rd slots resolve through one known group winner.
     }
   }
 
@@ -416,12 +416,7 @@ function currentBracketMatches(data){
     for(let i=0; i<round.matches; i++){
       const [a,b] = getMatchTeams(data, roundIndex, i);
 
-      if(
-        a &&
-        b &&
-        !isPlaceholder(a) &&
-        !isPlaceholder(b)
-      ){
+      if(a && b && !isPlaceholder(a) && !isPlaceholder(b)){
         out.push({
           id: matchId(roundIndex, i),
           a,
@@ -443,6 +438,7 @@ function eventWinner(event){
   if(!teams) return null;
 
   const marked = teams.find(t => t.winner);
+
   if(marked){
     return {
       winner: marked.name,
@@ -472,8 +468,6 @@ async function syncEspnResults(){
   try{
     const groupSync = await syncGroupWinners(data);
 
-    // This is the key accuracy fix:
-    // ESPN's actual R32 schedule fills Best 3rd slots instead of guessing.
     const r32Sync = await syncR32SlotsFromEspnSchedule(data);
 
     const events = await fetchScores([
@@ -489,6 +483,7 @@ async function syncEspnResults(){
 
       const found = bracketMatches.find(m => {
         const [x,y] = result.teams;
+
         return (
           (sameTeam(m.a, x) && sameTeam(m.b, y)) ||
           (sameTeam(m.a, y) && sameTeam(m.b, x))
@@ -497,6 +492,7 @@ async function syncEspnResults(){
 
       if(found && !data.actual?.[found.id]){
         data.actual = data.actual || {};
+
         data.actual[found.id] = sameTeam(found.a, result.winner)
           ? found.a
           : found.b;
