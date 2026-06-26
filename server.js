@@ -38,22 +38,33 @@ const ROUNDS = [
 ];
 
 const R32_SLOTS = [
-  ['Runner-up Group A','Runner-up Group B'],
-  ['Winner Group E','Best 3rd A/B/C/D/F'],
-  ['Winner Group F','Runner-up Group C'],
-  ['Winner Group C','Runner-up Group F'],
-  ['Winner Group I','Best 3rd C/D/F/G/H'],
-  ['Runner-up Group E','Runner-up Group I'],
-  ['Winner Group A','Best 3rd C/E/F/H/I'],
-  ['Winner Group L','Best 3rd E/H/I/J/K'],
-  ['Winner Group D','Best 3rd B/E/F/I/J'],
-  ['Winner Group G','Best 3rd A/E/H/I/J'],
-  ['Runner-up Group K','Runner-up Group L'],
-  ['Winner Group H','Runner-up Group J'],
-  ['Winner Group B','Best 3rd E/F/G/I/J'],
-  ['Winner Group J','Runner-up Group H'],
-  ['Winner Group K','Best 3rd D/E/I/J/L'],
-  ['Runner-up Group D','Runner-up Group G']
+  // June 28
+  ['Runner-up Group A', 'Runner-up Group B'],
+
+  // June 29
+  ['Winner Group C', 'Runner-up Group F'],                 // Brazil vs Japan
+  ['Winner Group E', 'Best 3rd A/B/C/D/F'],                // Germany vs 3rd
+  ['Winner Group F', 'Runner-up Group C'],                 // Netherlands vs Morocco
+
+  // June 30
+  ['Runner-up Group E', 'Runner-up Group I'],              // Ivory Coast vs Norway
+  ['Winner Group I', 'Best 3rd C/D/F/G/H'],                // France vs Sweden
+  ['Winner Group A', 'Best 3rd C/E/F/H/I'],                // Mexico vs Scotland
+
+  // July 1
+  ['Winner Group L', 'Best 3rd E/H/I/J/K'],                // England vs Cape Verde
+  ['Winner Group G', 'Best 3rd A/E/H/I/J'],                // Egypt vs South Korea
+  ['Winner Group D', 'Best 3rd B/E/F/I/J'],                // USA vs Bosnia ✅
+
+  // July 2
+  ['Winner Group H', 'Runner-up Group J'],                 // Spain vs Austria
+  ['Runner-up Group K', 'Runner-up Group L'],              // Portugal vs Ghana
+  ['Winner Group B', 'Best 3rd E/F/G/I/J'],                // Switzerland vs Belgium
+
+  // July 3
+  ['Runner-up Group D', 'Runner-up Group G'],              // Australia vs Iran
+  ['Winner Group J', 'Runner-up Group H'],                 // Argentina vs Uruguay
+  ['Winner Group K', 'Best 3rd D/E/I/J/L']                 // Colombia vs Croatia
 ];
 
 function defaultData(){
